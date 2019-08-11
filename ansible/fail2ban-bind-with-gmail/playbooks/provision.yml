@@ -25,6 +25,9 @@
   pre_tasks:
     - name: Update apt cache if needed.
       apt: update_cache=yes cache_valid_time=3600
+    # This task creates dynamically fail2ban_destemail variable in order to guarantee
+    # a single source of truth because in our case gmail_account is equal to the latter.
+    - set_fact: fail2ban_destemail={{ gmail_account }}
 
   handlers:
     - name: restart postfix
