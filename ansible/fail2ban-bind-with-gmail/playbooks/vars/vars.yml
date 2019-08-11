@@ -1,0 +1,6 @@
+---
+packages:
+  - "postfix"
+  - "mailutils"
+  - "libsasl2-modules"
+postfix_folder: /etc/postfix

@@ -1,0 +1,13 @@
+[securesrv]
+192.168.10.2
+
+[caller]
+192.168.10.3
+
+[all:children]
+securesrv
+caller
+
+[all:vars]
+ansible_ssh_user=vagrant
+ansible_ssh_private_key_file=~/.vagrant.d/insecure_private_key

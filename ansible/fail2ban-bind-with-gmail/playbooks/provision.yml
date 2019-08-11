@@ -1,0 +1,73 @@
+---
+- hosts: all
+  become: yes
+
+  vars:
+    firewall_allowed_tcp_ports:
+      - "22"
+      - "53"
+      - "80"
+
+  pre_tasks:
+    - name: Update apt cache if needed.
+      apt: update_cache=yes cache_valid_time=3600
+
+  roles:
+    - geerlingguy.firewall
+
+- hosts: securesrv
+  become: yes
+  vars_files:
+    - vars/fail2ban.yml
+    - vars/gmail_account.yml
+    - vars/vars.yml
+
+  pre_tasks:
+    - name: Update apt cache if needed.
+      apt: update_cache=yes cache_valid_time=3600
+
+  handlers:
+    - name: restart postfix
+      systemd: name=postfix state=restarted
+    - name: restart ssh
+      systemd: name=ssh state=restarted
+
+  roles:
+    - oefenweb.fail2ban
+
+  tasks:
+  - name: Install all dependences on host(s).
+    apt: 
+      pkg: "{{ packages }}" 
+      state: present
+  - name: Update SSH configuration to be more secure.
+    lineinfile:
+      dest: /etc/ssh/sshd_config
+      regexp: "{{ item.regexp }}"
+      line: "{{ item.line }}"
+      state: present
+    with_items:
+      - regexp: "^PasswordAuthentication"
+        line: "PasswordAuthentication no"
+      - regexp: "^PermitRootLogin"
+        line: "PermitRootLogin no"
+    notify: restart ssh
+  - name: Update Postfix's default config file to the target.
+    template:
+      src: "templates/main.cf.j2"
+      dest: "{{ postfix_folder }}/main.cf"
+      owner: root
+      group: root
+      mode: 0644
+  - name: Add GMAIL smtp creds to Postfix config.
+    template:
+      src: "templates/sasl_passwd.j2"
+      dest: "{{ postfix_folder }}/sasl_passwd"
+      owner: root
+      group: root
+      mode: 0400
+    register: update_smtp_creds
+  - name: Create Postfix lookup tables.
+    command: postmap /etc/postfix/sasl_passwd
+    notify: restart postfix
+    when: update_smtp_creds.changed == true

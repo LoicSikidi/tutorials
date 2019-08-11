@@ -1,0 +1,10 @@
+---
+fail2ban_mta: mail
+fail2ban_destemail: loic.sikidi@gmail.com
+fail2ban_bantime: 3600
+fail2ban_action: "%(action_mwl)s"
+fail2ban_services:
+  - name: sshd
+    filter: sshd
+    port: 22
+    logpath: /var/log/auth.log
