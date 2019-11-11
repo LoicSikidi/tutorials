@@ -24,19 +24,19 @@ Thanks to Ansible, we can easilly setup those securities!
 
 ## Building the VMs
 
-  1. Download and install [VirtualBox](https://www.virtualbox.org/wiki/Downloads).
-  2. Download and install [Vagrant](http://www.vagrantup.com/downloads.html).
-  3. [Mac/Linux only] Install [Ansible](http://docs.ansible.com/intro_installation.html).
-  4. Create an application password to grant access to your gmail mailbox[<sp>1</sp>](#note) (Optional).
-    * Go to your [security Google Account](https://myaccount.google.com/security?hl=en).
-    * In *Signing in to Google* click to **App passwords** button. You will have to login.
-    * Select `Mail` as app & `Other (Custom name)` as device you can name it *vagrant tutorial server* for example.
-    * Click on generate button and you should get a password of 16 characters. Save it because it's the only time that Google will display it.
-  5. Set your gmail credentials in `playbooks/vars/gmail_account.yml` (Optional).
-    * Replace <LOCAL_PART> with your gmail account.
-    * Replace <PASSWORD> with your app application password.
-  6. Run `ansible-galaxy install -r requirements.yml` in this directory to get the required Ansible roles.
-  7. Run `vagrant up` to build the VMs and configure the infrastructure.
+1. Download and install [VirtualBox](https://www.virtualbox.org/wiki/Downloads).
+2. Download and install [Vagrant](http://www.vagrantup.com/downloads.html).
+3. [Mac/Linux only] Install [Ansible](http://docs.ansible.com/intro_installation.html).
+4. Create an application password to grant access to your gmail mailbox[<sp>1</sp>](#note) (Optional).
+  * Go to your [security Google Account](https://myaccount.google.com/security?hl=en).
+  * In *Signing in to Google* click to **App passwords** button. You will have to login.
+  * Select `Mail` as app & `Other (Custom name)` as device you can name it *vagrant tutorial server* for example.
+  * Click on generate button and you should get a password of 16 characters. Save it because it's the only time that Google will display it.
+5. Set your gmail credentials in `playbooks/vars/gmail_account.yml` (Optional).
+  * Replace <LOCAL_PART> with your gmail account.
+  * Replace <PASSWORD> with your app application password.
+6. Run `ansible-galaxy install -r requirements.yml` in this directory to get the required Ansible roles.
+7. Run `vagrant up` to build the VMs and configure the infrastructure.
 
 At the end to the command, if you have set your gmail credentials, you should have received a mail from fail2ban `subject : [Fail2Ban] sshd: started on secure-srv` saying that the service is up.
 If if it's not the case, check the logs from *secure-srv* to find the root cause.
