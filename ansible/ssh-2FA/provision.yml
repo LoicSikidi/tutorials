@@ -1,0 +1,133 @@
+---
+- hosts: all
+  become: yes
+  gather_facts: no
+  
+  vars:
+    duo_pam_path: /lib64/security/pam_duo.so
+    duo_unix_version: 1.11.3
+    duo_integration_key: <DUO_INTEGRATION_KEY>
+    duo_secret_key: <DUO_SECRET_KEY>
+    duo_api_host: <DUO_API_HOST>
+
+  pre_tasks:
+    - name: Update apt cache if needed.
+      apt: update_cache=yes cache_valid_time=3600
+    #############################################################################
+    # Testing purpose:
+    # Tasks performed to disable 2FA to users in group 'exclude_from_2fa'
+    # and setup johnd user
+    #############################################################################
+    - name: Ensure group "exclude_from_2fa" exists.
+      group:
+        name: exclude_from_2fa
+        state: present
+    - name: Add the user "{{ ansible_ssh_user }}" to group of "exclude_from_2fa".
+      user:
+        name: "{{ ansible_ssh_user }}"
+        groups:
+          - exclude_from_2fa
+        append: true
+    - name: Add the user "johnd".
+      user:
+        name: johnd
+        create_home: yes
+        state: present
+    - name: Create ssh directory if it does not exist.
+      file:
+        path: ~/.ssh/
+        state: directory
+        mode: 0700
+      become_user: johnd
+    - name: Create authorized_keys file if it does not exist.
+      file:
+        path:  ~/.ssh/authorized_keys
+        state: touch
+        mode: 0600
+      become_user: johnd
+    - name: Add test ssh pub key to ubuntu user.
+      lineinfile:
+        dest: ~/.ssh/authorized_keys
+        regexp: "^ssh-rsa"
+        line: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAgQC/Zk8idpVVLvTk8fxDx6m/ToiaWFtitdgMD3mydpn/CX4noUYxO1UVRcdIUGxe0CuZ2nOONYDwCEsh6fA3p3EyBvKNJP0aCKHalqrHdrxXljHxmO7vSu1JbF8TU/uk5s61CiTJHbDOcS2wDC5o6Y9K7c5m3Vf9wwHGySHll3Biew=="
+        state: present
+      become_user: johnd
+
+  handlers:
+    - name: restart ssh
+      systemd: name=ssh state=restarted
+
+  tasks:
+    - name: Install required system packages.
+      apt: name={{ item }} state=latest update_cache=yes
+      loop: ['libssl-dev', 'libpam-dev', 'build-essential']
+
+    - name: Check if pam_duo.so already exists.
+      stat:
+        path: "{{ duo_pam_path }}"
+      register: duo_pam
+
+    - name: Download duounix binary.
+      get_url:
+        url: "https://dl.duosecurity.com/duo_unix-{{ duo_unix_version }}.tar.gz"
+        dest: /tmp
+        mode: 0664
+
+    - name: Extract "duo_unix-{{ duo_unix_version }}.tar.gz".
+      unarchive:
+        remote_src: yes
+        src: "/tmp/duo_unix-{{ duo_unix_version }}.tar.gz"
+        dest: /tmp
+
+    - name: Build and install duo_unix with PAM support (pam_duo).
+      shell: ./configure --with-pam --prefix=/usr && make && make install
+      args:
+        chdir: "/tmp/duo_unix-{{ duo_unix_version }}"
+      when: duo_pam.stat.exists is defined and duo_pam.stat.exists == false
+
+    - name: Configure PAM duo conf file.
+      template:
+        src: templates/pam_duo.conf.j2
+        dest: /etc/duo/pam_duo.conf
+
+    - name: Disable standard Unix authentication in ssh pam configuration.
+      lineinfile:
+        dest: /etc/pam.d/sshd
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        state: present
+      loop:
+        - regexp: "@include common-auth"
+          line: "#@include common-auth"
+
+    - name: Set Duo authentication in ssh pam configuration.
+      blockinfile:
+        path: /etc/pam.d/sshd
+        insertafter: "@include common-auth"
+        block: |
+          auth  [success=1 default=ignore] {{ duo_pam_path }}
+          auth  requisite pam_deny.so
+          auth  required pam_permit.so
+
+    - name: Update sshd_config in order to enable 2FA.
+      lineinfile:
+        dest: /etc/ssh/sshd_config
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        state: present
+      with_items:
+        - regexp: "^PasswordAuthentication"
+          line: "PasswordAuthentication no"
+        - regexp: "^UsePAM"
+          line: "UsePAM yes"
+        - regexp: "^PubkeyAuthentication"
+          line: "PubkeyAuthentication yes"
+        - regexp: "^KbdInteractiveAuthentication"
+          line: "KbdInteractiveAuthentication yes"
+        - regexp: "^AuthenticationMethods"
+          line: "AuthenticationMethods publickey,keyboard-interactive:pam"
+        - regexp: "^ChallengeResponseAuthentication"
+          line: "ChallengeResponseAuthentication yes"
+        - regexp: "^UseDNS"
+          line: "UseDNS no"
+      notify: restart ssh
